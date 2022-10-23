@@ -1,4 +1,5 @@
 const wdio = require("webdriverio");
+const {By} = require('selenium-webdriver');
 const assert = require("assert");
 "use strict"
 
@@ -46,6 +47,19 @@ const opts = {
       return null
     }
 
+    findElementWithClassAndIndex = async function(class_, index) {
+      const items = await client.findElements('className', class_)
+      if (Array.isArray(items) && items.length > index) {
+        return items[index]
+      }
+      return null
+    }
+
+    findElementWithId = async function(id) {
+      const item = await client.findElement('id', id)
+      return item
+    }
+
     client.waitUntilNew = async function(func, ...args) {
       const result = await client.waitUntil((async () => {
         res = null
@@ -86,11 +100,11 @@ const opts = {
     await client.elementClick(investEl.ELEMENT)
 
     //searchMenuItems = await client.findElements('id', 'com.revolut.revolut:id/navBarMenuItem_icon')
-
+    await sleep(1000)
     searchMenuItems = await client.waitUntilNew(findElementWithIdAndIndex, 'com.revolut.revolut:id/navBarMenuItem_icon', 1)
     await client.elementClick(searchMenuItems.ELEMENT)
 
-    await sleep(2000)
+    await sleep(1000)
     searchBar = await client.findElement('id', 'com.revolut.revolut:id/search')
 
     //searchBar = await client.waitUntilNew(client.findElement, 'id', 'com.revolut.revolut:id/search')
@@ -103,8 +117,21 @@ const opts = {
 
     console.log(stockLabelText)
     assert(stockLabelText.includes('AAPL'))
-
     await client.elementClick(stock.ELEMENT)
+    await sleep(2000)
+
+    console.log('TEST')
+    buyBar = await client.waitUntilNew(findElementWithId, 'com.revolut.revolut:id/actionsRecyclerView')
+
+    buy = await client.findElementsFromElement(buyBar.ELEMENT, 'class name', 'android.view.ViewGroup')
+    //buy = await findElementWithClassAndIndex('android.view.ViewGroup', 0)
+    //buy = await client.findElement('xpath', '//')
+    //buy = await client.findElement('#com.revolut.revolut:id/actionsRecyclerView.android.view.ViewGroup')
+    console.log('BUY!')
+    console.log(buy)
+    
+    await client.elementClick(buy[0].ELEMENT)
+
     await sleep(10000)
     await client.deleteSession();
   }
