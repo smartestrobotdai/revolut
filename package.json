@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "selenium-webdriver": "^4.5.0",
-    "webdriverio": "^7.25.2"
+    "webdriverio": "^7.25.2",
+    "websocket": "^1.0.34"
   }
 }
