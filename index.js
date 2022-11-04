@@ -193,8 +193,7 @@ async function buy(name, amount, price) {
   await client.elementClick(submitBtn.ELEMENT)
 
   // write to temperary file
-  currentHold = await fs.promises.readFile()
-  const contentToWrite = JSON.stringify({name, latestPrice})
+  await holds.add(name, latestPrice)
 }
 
 async function sell(name) {
@@ -229,6 +228,8 @@ async function sell(name) {
 
       const submitBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
       await client.elementClick(submitBtn.ELEMENT)
+
+      await holds.remove(name)
       await sleep(2000)
       break
     }    
