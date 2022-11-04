@@ -1,5 +1,5 @@
 const wdio = require("webdriverio");
-
+const {Holds} = require('./holds')
 const assert = require("assert");
 
 "use strict"
@@ -27,7 +27,7 @@ let client = null
 let isOperationOngoing = false
 const WebSocketClient = require('websocket').client;
 const exampleSocket = new WebSocketClient()
-
+const holds = new Holds('myhold.json')
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -165,34 +165,39 @@ async function buy(name, amount, price) {
   await sleep(500)
   priceLabel = await waitUntilNew(findElementWithXPath, `//*[@class=\'android.view.ViewGroup\']/*[@resource-id=\'com.revolut.revolut:id/endLabel\' and contains(@text, \'${name}\')]`)
   priceText = await client.getElementText(priceLabel.ELEMENT)
-  console.log(priceText)  // 1 AAPL = $147.62
+  logger.info(priceText)  // 1 AAPL = $147.62
 
   const re = /\$(\d.+)/
   const latestPrice = +re.exec(priceText)[1]
   if (latestPrice > price) {
-    console.log(`missed buy opportunity, required price: ${price}, actual price: ${latestPrice}`)
+    logger.info(`missed buy opportunity, required price: ${price}, actual price: ${latestPrice}`)
     return
   }
 
   commisionFreeLabel = await client.findElement('xpath', '//*[@class=\'android.view.ViewGroup\']/*[@resource-id=\'com.revolut.revolut:id/cellDetailsText_endLabel\' and contains(@text, \'out of\')]')
   commisionFreeText = await client.getElementText(commisionFreeLabel.ELEMENT) // 9 out of 10
-  console.log(commisionFreeText)
+  logger.info(commisionFreeText)
 
   const re2 = /(\d) out of/
   const leftCommisionFreeTimes = re2.exec(commisionFreeText)[1]
   if (leftCommisionFreeTimes <= 1) {
-    console.log(`Left commision free times <= 1, aborting...`)
+    logger.info(`Left commision free times <= 1, aborting...`)
     return
   }
 
   dayTradesLeft = await client.findElement('xpath', '//*[@class=\'android.view.ViewGroup\']/*[@resource-id=\'com.revolut.revolut:id/endLabel\' and contains(@text, \'out of\')]')
   dayTradesLeftText = await client.getElementText(dayTradesLeft.ELEMENT) // 3 out of 3
-  console.log(dayTradesLeftText)
+  logger.info(dayTradesLeftText)
 
   const submitBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
+  await client.elementClick(submitBtn.ELEMENT)
+
+  // write to temperary file
+  currentHold = await fs.promises.readFile()
+  const contentToWrite = JSON.stringify({name, latestPrice})
 }
 
-async function sell(name, price, isStoploss=false) {
+async function sell(name) {
   await toStock(client)
   await sleep(1000) // CANNOT REMOVE!
   // get current stock
@@ -203,94 +208,38 @@ async function sell(name, price, isStoploss=false) {
     await client.elementClick(investment.ELEMENT)
     stockName = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.widget.TextView\' and @resource-id=\'com.revolut.revolut:id/headerLayout_descriptionText\']')
     stockNameText = await client.getElementText(stockName.ELEMENT)
-    console.log(stockNameText)
+    logger.info(stockNameText)
     regex = /[A-Z0-9\.]+/
     stockId = stockNameText.match(regex)[0]
     if (stockId === name) {
       const sellBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/actionsRecyclerView\' and @class=\'androidx.recyclerview.widget.RecyclerView\']/*[@class=\'android.view.ViewGroup\' and @index=\'1\']')
       await client.elementClick(sellBtn.ELEMENT)
-      
-      // click market order
-      if (isStoploss) {
-        const marketOrder = await waitUntilNew(findElementWithXPath, '//*[@resource-id=\'com.revolut.revolut:id/delegate_nav_bar_text_menu_item_text_view\']')
-        client.elementClick(marketOrder.ELEMENT)
-        
-        // click market order
-        const stopOrder = await waitUntilNew(findElementWithXPath, '//*[@resource-id=\'com.revolut.revolut:id/row_root\' and @index=\'2\']')
-        await client.elementClick(stopOrder.ELEMENT)
-        await sleep(500)
-        const inputText = await waitUntilNew(findElementWithXPath, '//*[@resource-id=\'com.revolut.revolut:id/amountEdit_amountInputText\']')
-        await client.elementSendKeys(inputText.ELEMENT, price.toString())
-        
-        const continueBtn = await client.findElement('id', 'com.revolut.revolut:id/next_button')
-        await client.elementClick(continueBtn.ELEMENT)
-  
-        // resource-id = com.revolut.revolut:id/amountEdit_startHintContainer
-        // class = android.widget.RelativeLayout
-        const ownedLabel = await waitUntilNew(findElementWithXPath, '//*[@resource-id=\'com.revolut.revolut:id/amountEdit_startHintContainer\' and @class=\'android.widget.RelativeLayout\' and @index=\'2\']')
-        await client.elementClick(ownedLabel.ELEMENT)
-  
-        // resource-id = com.revolut.revolut:id/next_button
-        // class = android.widget.FrameLayout
-        const sellBtn2 = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
-        await client.elementClick(sellBtn2.ELEMENT)
-  
-        // resourceid = com.revolut.revolut:id/next_button
-        // class = android.widget.FrameLayout
-        await sleep(500)
-        const submitBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
-        // await client.elementClick(submitBtn.ELEMENT)
-      } else {
-        await sleep(500)
-        const ownedLabel = await waitUntilNew(findElementWithXPath, '//*[@resource-id=\'com.revolut.revolut:id/amountEdit_startHintContainer\' and @class=\'android.widget.RelativeLayout\' and @index=\'2\']')
-        await client.elementClick(ownedLabel.ELEMENT)
-        const sellBtn2 = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
-        await client.elementClick(sellBtn2.ELEMENT)
-        await sleep(500)
 
-        //check price
-        priceLabel = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.view.ViewGroup\' and @index=\'4\']/*[@resource-id=\'com.revolut.revolut:id/endLabel\']')
-        priceText = await client.getElementText(priceLabel.ELEMENT)
-        console.log(priceText)  // 1 AAPL = $147.62
+      await sleep(500)
+      const ownedLabel = await waitUntilNew(findElementWithXPath, '//*[@resource-id=\'com.revolut.revolut:id/amountEdit_startHintContainer\' and @class=\'android.widget.RelativeLayout\' and @index=\'2\']')
+      await client.elementClick(ownedLabel.ELEMENT)
+      const sellBtn2 = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
+      await client.elementClick(sellBtn2.ELEMENT)
+      await sleep(500)
 
-        const submitBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
-        // await client.elementClick(submitBtn.ELEMENT)
-      }
- 
+      //check price
+      priceLabel = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.view.ViewGroup\' and @index=\'4\']/*[@resource-id=\'com.revolut.revolut:id/endLabel\']')
+      priceText = await client.getElementText(priceLabel.ELEMENT)
+      logger.info(priceText)  // 1 AAPL = $147.62
 
-      await sleep(3000)
+      const submitBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
+      await client.elementClick(submitBtn.ELEMENT)
+      await sleep(2000)
       break
     }    
   }
-}
-
-async function getMyHolds() {
-  await toStock(client)
-  // get current stock
-  //investments = await client.findElements('xpath', '//*[@class=\'android.view.ViewGroup\' and preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\']]')
-  myHolds = []
-  await sleep(1000) // CANNOT REMOVE
-  investments = await waitUntilNew(findElementsWithXPath, '//*[@class=\'android.view.ViewGroup\' and @resource-id=\'com.revolut.revolut:id/row_root\' and count(preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\'])=1]')
-  for (investment of investments) {
-    await client.elementClick(investment.ELEMENT)
-    
-    stockName = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.widget.TextView\' and @resource-id=\'com.revolut.revolut:id/headerLayout_descriptionText\']')
-    stockNameText = await client.getElementText(stockName.ELEMENT)
-    console.log(stockNameText)
-    regex = /[A-Z0-9\.]+/
-    stockId = stockNameText.match(regex)[0]
-    element = investment.ELEMENT
-    myHolds.push(stockId)
-  }
-  return myHolds
-  
 }
 
 function webSocketConnect(url) {
   return new Promise((resolve, reject) => {
     exampleSocket.connect(url, '');
     exampleSocket.onopen = (event) => {
-      console.log('opened!')
+      logger.info('opened!')
     }
     exampleSocket.on('connect', function(connection) {
       resolve(connection)
@@ -318,25 +267,34 @@ handleBuyMessage = async (message) => {
       return
     }
     isOperationOngoing = true
-    console.log("Received: '" + message.utf8Data + "'")
+    // logger.info("Received: '" + message.utf8Data + "'")
     const recObj = JSON.parse(message.utf8Data )
-    const {id, point, operation, stoploss} = recObj
+    const {id, point, price, operation, stoploss} = recObj
     if (operation === 'buy') {
-      console.log(`Trying buy ${id} at point ${point}`)
+      if (!holds.includes(id)) {
+        logger.info(`Trying buy ${id} at point ${point}`)
+        await client.reloadSession()
+        await sleep(3000)
+        logger.info('preparing to buy')
+        const buyPrice = await buy(id, 1000, point)
+        await client.deleteSession()
+      } else {
+        const priceBought = holds.getPrice(id)
+        if (price < priceBought * stoploss) {
+          // the signal is buy but actually stop loss reached
+          logger.info(`Stop loss! Trying sell ${id}`)
+          await client.reloadSession()
+          await sleep(3000)
+          await sell(id)
+          await sleep(3000)
+          await client.deleteSession()
+        }
+      }
+    } else if (operation === 'sell' && holds.includes(id)) {
+      logger.info(`Trying sell ${id} at point ${point}`)
       await client.reloadSession()
       await sleep(3000)
-      logger.info('preparing to buy')
-      await buy(id, 1000, point)
-      await client.reloadSession()
-      await sleep(3000)
-      await sell(id, stoploss, true)
-      await sleep(3000)
-      await client.deleteSession()
-    } else if (operation === 'sell') {
-      console.log(`Trying sell ${id} at point ${point}`)
-      await client.reloadSession()
-      await sleep(3000)
-      await sell(id, point, false)
+      await sell(id)
       await sleep(3000)
       await client.deleteSession()
     }
@@ -346,13 +304,18 @@ handleBuyMessage = async (message) => {
 
 async function main () {
   //await sleep(10000)
-  client = await wdio.remote(opts)
-  await sleep(1000)
-  myHolds = await getMyHolds()
-  await sleep(1000)
-  logger.info('My current holds:')
-  console.log(myHolds)
 
+  // await sleep(1000)
+  // myHolds = await getMyHolds()
+  // await sleep(1000)
+  // logger.info('My current holds:')
+  // logger.info(myHolds)
+  // client.deleteSession()
+
+  await holds.load()
+  console.log(holds.getAll())
+
+  client = await wdio.remote(opts)
   const websocketUrl = 'ws://localhost:8766/'
   const connection = await webSocketConnect(websocketUrl)
   logger.info(`connected to ${websocketUrl}`)
@@ -360,8 +323,8 @@ async function main () {
 
   connection.on('message', handleBuyMessage)
 
-  const objToSend = {'operation': 'buy', 'point': '250', 'id': 'MSFT', 'stoploss': '200'}
-  connection.sendUTF(JSON.stringify(objToSend))
+  // const objToSend = {'operation': 'buy', 'point': '250', 'id': 'MSFT', 'stoploss': '200'}
+  // connection.sendUTF(JSON.stringify(objToSend))
 
   // await sleep(120)
   // const objToSend2 = {'operation': 'sell', 'point': '250', 'id': 'MSFT',}
@@ -387,4 +350,4 @@ async function main () {
   
 }
 
-main();
+main()
