@@ -27,7 +27,7 @@ let client = null
 let isOperationOngoing = false
 const WebSocketClient = require('websocket').client;
 const exampleSocket = new WebSocketClient()
-const holds = new Holds('myhold.json')
+const holds = new Holds('myholds.json')
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -254,9 +254,12 @@ function waitForMessageForever() {
 
 process.on('SIGINT', async function() {
   logger.info('SIGINT Received');
-  await client.deleteSession();
+  try {
+    await client.deleteSession();
+  } catch(e){
+    process.exit()
+  }
   process.exit()
-
 })
 
 
@@ -314,9 +317,12 @@ async function main () {
   // client.deleteSession()
 
   await holds.load()
+  await sleep(1000)
   console.log(holds.getAll())
 
   client = await wdio.remote(opts)
+  await sleep(3000)
+  client.deleteSession()
   const websocketUrl = 'ws://localhost:8766/'
   const connection = await webSocketConnect(websocketUrl)
   logger.info(`connected to ${websocketUrl}`)
