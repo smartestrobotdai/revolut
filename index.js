@@ -274,34 +274,40 @@ handleBuyMessage = async (message) => {
     // logger.info("Received: '" + message.utf8Data + "'")
     const recObj = JSON.parse(message.utf8Data )
     const {id, point, price, operation, stoploss} = recObj
-    if (operation === 'buy') {
-      if (!holds.includes(id)) {
-        logger.info(`Trying buy ${id} at point ${point}`)
-        await client.reloadSession()
-        await sleep(3000)
-        logger.info('preparing to buy')
-        const buyPrice = await buy(id, 1000, point)
-        await client.deleteSession()
-      } else {
-        const priceBought = holds.getPrice(id)
-        if (price < priceBought * stoploss) {
-          // the signal is buy but actually stop loss reached
-          logger.info(`Stop loss! Trying sell ${id}`)
-          await client.reloadSession()
+    try {
+      if (operation === 'buy') {
+        if (!holds.includes(id)) {
+          logger.info(`Trying buy ${id} at point ${point}`)
+          client = await wdio.remote(opts)
           await sleep(3000)
-          await sell(id)
-          await sleep(3000)
+          logger.info('preparing to buy')
+          const buyPrice = await buy(id, 1000, point)
           await client.deleteSession()
+        } else {
+          const priceBought = holds.getPrice(id)
+          if (price < priceBought * stoploss) {
+            // the signal is buy but actually stop loss reached
+            logger.info(`Stop loss! Trying sell ${id}`)
+            client = await wdio.remote(opts)
+            await sleep(3000)
+            await sell(id)
+            await sleep(3000)
+            await client.deleteSession()
+          }
         }
+      } else if (operation === 'sell' && holds.includes(id)) {
+        logger.info(`Trying sell ${id} at point ${point}`)
+        client = await wdio.remote(opts)
+        await sleep(3000)
+        await sell(id)
+        await sleep(3000)
+        await client.deleteSession()
       }
-    } else if (operation === 'sell' && holds.includes(id)) {
-      logger.info(`Trying sell ${id} at point ${point}`)
-      await client.reloadSession()
-      await sleep(3000)
-      await sell(id)
-      await sleep(3000)
-      await client.deleteSession()
+    } catch(e) {
+      logger.error(e)
+      isOperationOngoing = false  
     }
+
     isOperationOngoing = false
   }
 }
@@ -320,9 +326,9 @@ async function main () {
   await sleep(1000)
   console.log(holds.getAll())
 
-  client = await wdio.remote(opts)
-  await sleep(3000)
-  client.deleteSession()
+  // client = await wdio.remote(opts)
+  // await sleep(3000)
+  // client.deleteSession()
   const websocketUrl = 'ws://localhost:8766/'
   const connection = await webSocketConnect(websocketUrl)
   logger.info(`connected to ${websocketUrl}`)
