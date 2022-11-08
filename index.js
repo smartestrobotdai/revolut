@@ -1,4 +1,3 @@
-
 const {Holds} = require('./holds')
 const assert = require("assert");
 const {buy, sell} = require('./android')
@@ -44,17 +43,20 @@ handleBuyMessage = async (message) => {
           logger.info(`Trying buy ${id} at point ${point}`)
           const buyPrice = await buy(id, 1000, point, false)
           logger.info(`Bought ${id} at price ${buyPrice}`)
+          await holds.add(id, buyPrice)
         } else {
           const priceBought = holds.getPrice(id)
           if (price < priceBought * stoploss) {
             // the signal is buy but actually stop loss reached
             logger.info(`Stop loss! Trying sell ${id}`)
             await sell(id, false)
+            await holds.remove(id)
           }
         }
       } else if (operation === 'sell' && holds.includes(id)) {
         logger.info(`Trying sell ${id} at point ${point}`)
         await sell(id, false)
+        await holds.remove(id)
       }
     } catch(e) {
       logger.error(e)
@@ -67,14 +69,13 @@ handleBuyMessage = async (message) => {
 
 async function main () {
   await holds.load()
-  console.log(holds.getAll())
+  const myHolds = await holds.getAll()
+  console.log(`Holds: ${JSON.stringify(myHolds)}` )
   const websocketUrl = 'ws://192.168.1.41:8766/'
   const connection = await webSocketConnect(websocketUrl)
   logger.info(`connected to ${websocketUrl}`)
   connection.on('message', handleBuyMessage)
-  await buy('MSFT', 1000, 229, isTest=true)
   await waitForMessageForever()
-  
 }
 
 main()

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const { syncBuiltinESMExports } = require('module');
+const { resolve } = require('path');
 const { mainModule } = require('process');
 var fsPromises = fs.promises;
 
@@ -10,7 +11,7 @@ class Holds {
     this.path = path
   }
   load() {
-    fsPromises.readFile(this.path).catch((e) => {
+    return fsPromises.readFile(this.path).catch((e) => {
 
       console.log(e)
       if (e.code === 'ENOENT') {
@@ -20,9 +21,12 @@ class Holds {
       }
     }).then(content => {
       content = "" + content
+      
       if (content) {
         this.holds = JSON.parse(content)
+        return Promise.resolve(this.holds)
       }
+      return Promise.resolve([])
     })
   }
   
@@ -47,7 +51,7 @@ class Holds {
     return Promise.resolve()
   }
   
-  getAll() {
+  getAll = () => {
     return this.holds
   }
   

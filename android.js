@@ -179,7 +179,7 @@ async function buy(name, amount, price, isTest=true) {
       await client.elementClick(submitBtn.ELEMENT)
   
       // write to temperary file
-      await holds.add(name, latestPrice)
+      
     }
     await client.deleteSession()
   }
@@ -220,7 +220,7 @@ async function buy(name, amount, price, isTest=true) {
   
         if (!isTest) {
           await client.elementClick(submitBtn.ELEMENT)
-          await holds.remove(name)
+          
         }
         break
       }    
