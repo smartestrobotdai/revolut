@@ -1,6 +1,6 @@
 const {Holds} = require('./holds')
 const assert = require("assert");
-const {buy, sell} = require('./android')
+const {buy, sell, FAILED_PERMANENT, FAILED_SHORT_TIME, FAILED_LONG_TIME} = require('./android')
 const {sleep, logger} = require('./util')
 "use strict"
 
@@ -26,14 +26,23 @@ function waitForMessageForever() {
   return new Promise((resolve) => {})
 }
 
+function getCurTImeInSecond() {
+  return parseInt(Date.now()/1000)
+}
+
+let sleepStartTIme = null
 handleBuyMessage = async (message) => {
   if (message.type === 'utf8') {
     // check if we are still under processing
     if (isOperationOngoing === true) {
       logger.warn('operation is ongoing...abort...')
       return
+    } else if (sleepStartTIme && getCurTImeInSecond() - sleepStartTIme < 3600) {
+      logger.info('sleeping, abort')
+      return
     }
     isOperationOngoing = true
+    sleepStartTIme = null
     // logger.info("Received: '" + message.utf8Data + "'")
     const recObj = JSON.parse(message.utf8Data )
     const {id, point, price, operation, stoploss} = recObj
@@ -42,9 +51,21 @@ handleBuyMessage = async (message) => {
         if (!holds.includes(id)) {
           logger.info(`Trying buy ${id} at point ${point}`)
           const buyPrice = await buy(id, 1000, point, false)
-          logger.info(`Bought ${id} at price ${buyPrice}`)
-          await holds.add(id, buyPrice)
+          if (buyPrice < 0) {
+            if (buyPrice === FAILED_PERMANENT) {
+              logger.info('Exiting process...')
+              process.exit(-1)
+            } else if (buyPrice === FAILED_LONG_TIME) {
+              logger.info('Hibernate for 1 hour')
+              sleepStartTIme = getCurTImeInSecond()
+            }
+          }
+          else if (buyPrice !== -1) {
+            logger.info(`Bought ${id} at price ${buyPrice}`)
+            await holds.add(id, buyPrice)
+          }
         } else {
+          /* NO STOP LOSS!
           const priceBought = holds.getPrice(id)
           if (price < priceBought * stoploss) {
             // the signal is buy but actually stop loss reached
@@ -52,6 +73,7 @@ handleBuyMessage = async (message) => {
             await sell(id, false)
             await holds.remove(id)
           }
+          */
         }
       } else if (operation === 'sell' && holds.includes(id)) {
         logger.info(`Trying sell ${id} at point ${point}`)
@@ -71,7 +93,7 @@ async function main () {
   await holds.load()
   const myHolds = await holds.getAll()
   console.log(`Holds: ${JSON.stringify(myHolds)}` )
-  const websocketUrl = 'ws://192.168.1.41:8766/'
+  const websocketUrl = 'ws://192.168.1.35:8766/'
   const connection = await webSocketConnect(websocketUrl)
   logger.info(`connected to ${websocketUrl}`)
   connection.on('message', handleBuyMessage)

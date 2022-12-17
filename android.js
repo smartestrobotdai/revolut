@@ -4,6 +4,15 @@ const assert = require("assert");
 
 let client = null
 
+// no retry
+const FAILED_PERMANENT=-1
+
+// try again
+const FAILED_SHORT_TIME=-2
+
+// sleep 1 hour
+const FAILED_LONG_TIME=-3
+
 process.on('SIGINT', async function() {
   logger.info('SIGINT Received - trying to delete session');
   try {
@@ -15,100 +24,137 @@ process.on('SIGINT', async function() {
 })
 
 const opts = {
-    path: '/wd/hub',
-    port: 4723,
-    capabilities: {
-      platformName: "Android",
-      platformVersion: "12",
-      deviceName: "RFCRC0R00XD",
-      //app: "https://github.com/appium/appium/raw/1.x/sample-code/apps/ApiDemos-debug.apk",
-      //appPackage: "io.appium.android.apis",
-      appPackage: "com.revolut.revolut",
-      appActivity: "com.revolut.ui.login.pin.LoginActivity",
-      automationName: "UiAutomator2",
-      noReset: true
+  path: '/wd/hub',
+  port: 4723,
+  capabilities: {
+    platformName: "Android",
+    platformVersion: "12",
+    deviceName: "RFCRC0R00XD",
+    //app: "https://github.com/appium/appium/raw/1.x/sample-code/apps/ApiDemos-debug.apk",
+    //appPackage: "io.appium.android.apis",
+    appPackage: "com.revolut.revolut",
+    appActivity: "com.revolut.ui.login.pin.LoginActivity",
+    automationName: "UiAutomator2",
+    noReset: true
+  }
+}
+  
+findElementWithIdAndText = async function(id, text) {
+  items = await client.findElements('id', id)
+  for (item of items) {
+    const myText = await client.getElementText(item.ELEMENT)
+    if (myText == text) {
+        return item
     }
   }
-  
-  findElementWithIdAndText = async function(id, text) {
-    items = await client.findElements('id', id)
-    for (item of items) {
-      const myText = await client.getElementText(item.ELEMENT)
-      if (myText == text) {
-          return item
-      }
-    }
-    return null
-  }
-  
-  findElementWithIdAndIndex = async function(id, index) {
-    const items = await client.findElements('id', id)
-    if (Array.isArray(items) && items.length > index) {
-      return items[index]
-    }
-    return null
-  }
-  
-  findElementWithClassAndIndex = async function(class_, index) {
-    const items = await client.findElements('className', class_)
-    if (Array.isArray(items) && items.length > index) {
-      return items[index]
-    }
-    return null
-  }
-  
-  findElementWithId = async function(id) {
-    const item = await client.findElement('id', id)
-    return item
-  }
-  
-  findElementWithXPath = async function(xpath) {
-    const item = await client.findElement('xpath', xpath)
-    return item
-  }
-  
-  findElementsWithXPath = async function(xpath) {
-    const item = await client.findElements('xpath', xpath)
-    return item
-  }
-  
-  waitUntilNew = async function(func, ...args) {
-    const result = await client.waitUntil((async () => {
-      res = null
-      try {
-        res = await func(...args)
-        return res !== null && !res.error && (!Array.isArray(res) || res.length > 0)
-      } catch (error) {
-        return false
-      }
-    }), {
-      timeout: 10000,
-      timeoutMsg: 'expected text to be different after 5s'
-    })
-    return res || result
-  }
-  
-  toStock = async function () {
-    field = await waitUntilNew(findElementWithId, 'com.revolut.revolut:id/internalViewKeypadView_button0')
-    await client.elementClick(field.ELEMENT)
-    field = await client.findElement('id', 'com.revolut.revolut:id/internalViewKeypadView_button5')
-    await client.elementClick(field.ELEMENT)
-    field = await client.findElement('id', 'com.revolut.revolut:id/internalViewKeypadView_button1')
-    await client.elementClick(field.ELEMENT)
-    field = await client.findElement('id', 'com.revolut.revolut:id/internalViewKeypadView_button1')
-    await client.elementClick(field.ELEMENT)
-    await sleep(500) // Don't remove
-    stockEl = await waitUntilNew(findElementWithIdAndText, 'com.revolut.revolut:id/tabText', 'Stocks')
-    await client.elementClick(stockEl.ELEMENT)
-  }
-  
+  return null
+}
 
+findElementWithIdAndIndex = async function(id, index) {
+  const items = await client.findElements('id', id)
+  if (Array.isArray(items) && items.length > index) {
+    return items[index]
+  }
+  return null
+}
+
+findElementWithClassAndIndex = async function(class_, index) {
+  const items = await client.findElements('className', class_)
+  if (Array.isArray(items) && items.length > index) {
+    return items[index]
+  }
+  return null
+}
+
+findElementWithId = async function(id) {
+  const item = await client.findElement('id', id)
+  return item
+}
+
+findElementWithXPath = async function(xpath) {
+  const item = await client.findElement('xpath', xpath)
+  return item
+}
+
+findElementsWithXPath = async function(xpath) {
+  const item = await client.findElements('xpath', xpath)
+  return item
+}
+
+waitUntilNew = async function(func, ...args) {
+  const result = await client.waitUntil((async () => {
+    res = null
+    try {
+      res = await func(...args)
+      return res !== null && !res.error && (!Array.isArray(res) || res.length > 0)
+    } catch (error) {
+      return false
+    }
+  }), {
+    timeout: 10000,
+    timeoutMsg: 'expected text to be different after 5s'
+  })
+  return res || result
+}
+
+
+  
+toStock = async function () {
+  field = await waitUntilNew(findElementWithId, 'com.revolut.revolut:id/internalViewKeypadView_button0')
+  await client.elementClick(field.ELEMENT)
+  field = await client.findElement('id', 'com.revolut.revolut:id/internalViewKeypadView_button5')
+  await client.elementClick(field.ELEMENT)
+  field = await client.findElement('id', 'com.revolut.revolut:id/internalViewKeypadView_button1')
+  await client.elementClick(field.ELEMENT)
+  field = await client.findElement('id', 'com.revolut.revolut:id/internalViewKeypadView_button1')
+  await client.elementClick(field.ELEMENT)
+  await sleep(500) // Don't remove
+  stockEl = await waitUntilNew(findElementWithIdAndText, 'com.revolut.revolut:id/tabText', 'Stocks')
+  await client.elementClick(stockEl.ELEMENT)
+}
+
+getPriceFromLabelText = function(text) {
+  const re = /\$(\d.+)/
+  const latestPrice = +re.exec(text)[1]
+  return latestPrice
+}
+
+checkBalance = async function(client) {
+      //investments = await client.findElements('xpath', '//*[@class=\'android.view.ViewGroup\' and preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\']]')
+  // 
+  const usdBalancePath = '//*[@class=\'android.widget.TextView\' and @resource-id=\'com.revolut.revolut:id/valuePrimary\' and count(preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/title\' and contains(@text, \'USD\')])=1]'
+  let eleBalance = await client.findElement('xpath', usdBalancePath)
+  if (!eleBalance || eleBalance.error) {
+    // scroll down
+    await client.touchAction([
+      { action: 'press', x: 200, y: 1200 },
+      { action: 'moveTo', x: 200, y: 800 },
+      'release'
+    ])
+    eleBalance = await waitUntilNew(findElementWithXPath, usdBalancePath)
+  }
+
+  balanceText = await client.getElementText(eleBalance.ELEMENT)
+  balanceText = balanceText.replace(',','').replace('$','')
+  console.log(balanceText)
+  
+  return parseInt(balanceText)
+}
 
 async function buy(name, amount, price, isTest=true) {
     client = await wdio.remote(opts)
     await sleep(1000)
     await toStock(client)
-    await sleep(500)
+    await sleep(2000)
+
+    balance = await checkBalance(client)
+    if (balance < amount) {
+      logger.warn(`Balance: ${balance} < amount ${amount}`)
+      await client.deleteSession()
+      return FAILED_LONG_TIME
+    }
+
+
     investEl = await waitUntilNew(findElementWithIdAndText, 'com.revolut.revolut:id/actionText', 'Invest')
     await client.elementClick(investEl.ELEMENT)
     await sleep(500)
@@ -151,22 +197,22 @@ async function buy(name, amount, price, isTest=true) {
     priceText = await client.getElementText(priceLabel.ELEMENT)
     logger.info(priceText)  // 1 AAPL = $147.62
   
-    const re = /\$(\d.+)/
-    const latestPrice = +re.exec(priceText)[1]
+    const latestPrice = getPriceFromLabelText(priceText)
     if (latestPrice > price) {
       logger.info(`missed buy opportunity, required price: ${price}, actual price: ${latestPrice}`)
-      return
+      return FAILED_SHORT_TIME
     }
   
     commisionFreeLabel = await client.findElement('xpath', '//*[@class=\'android.view.ViewGroup\']/*[@resource-id=\'com.revolut.revolut:id/cellDetailsText_endLabel\' and contains(@text, \'out of\')]')
     commisionFreeText = await client.getElementText(commisionFreeLabel.ELEMENT) // 9 out of 10
     logger.info(commisionFreeText)
   
-    const re2 = /(\d) out of/
+    const re2 = /(\d+) out of/
     const leftCommisionFreeTimes = re2.exec(commisionFreeText)[1]
-    if (leftCommisionFreeTimes <= 1) {
-      logger.info(`Left commision free times <= 1, aborting...`)
-      return
+    
+    if (parseInt(leftCommisionFreeTimes) <= 4) {
+      logger.info(`Left commision free times <= 4, aborting...`)
+      return FAILED_PERMANENT
     }
   
     dayTradesLeft = await client.findElement('xpath', '//*[@class=\'android.view.ViewGroup\']/*[@resource-id=\'com.revolut.revolut:id/endLabel\' and contains(@text, \'out of\')]')
@@ -177,11 +223,10 @@ async function buy(name, amount, price, isTest=true) {
   
     if (!isTest) {
       await client.elementClick(submitBtn.ELEMENT)
-  
-      // write to temperary file
-      
     }
+    await sleep(1000)
     await client.deleteSession()
+    return latestPrice
   }
   
   async function sell(name, isTest=true) {
@@ -215,19 +260,27 @@ async function buy(name, amount, price, isTest=true) {
         priceLabel = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.view.ViewGroup\' and @index=\'4\']/*[@resource-id=\'com.revolut.revolut:id/endLabel\']')
         priceText = await client.getElementText(priceLabel.ELEMENT)
         logger.info(priceText)  // 1 AAPL = $147.62
-  
+        const latestPrice = getPriceFromLabelText(priceText)
         const submitBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
   
         if (!isTest) {
           await client.elementClick(submitBtn.ELEMENT)
-          
+          await sleep(1000)
+          await client.deleteSession()
+          return latestPrice
         }
         break
-      }    
+      } else {
+        // we must go back.
+        const backButton = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.widget.ImageButton\' and @resource-id=\'com.revolut.revolut:id/navigationButton\']')
+        await client.elementClick(backButton.ELEMENT)
+        await sleep(500)
+      }
     }
     await client.deleteSession()
+    return null
   }
 
   module.exports = {
-    buy, sell
+    buy, sell, FAILED_LONG_TIME, FAILED_PERMANENT, FAILED_SHORT_TIME
   }
