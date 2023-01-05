@@ -106,7 +106,7 @@ toStock = async function () {
   await client.elementClick(field.ELEMENT)
   field = await client.findElement('id', 'com.revolut.revolut:id/internalViewKeypadView_button1')
   await client.elementClick(field.ELEMENT)
-  field = await client.findElement('id', 'com.revolut.revolut:id/internalViewKeypadView_button1')
+  field = await client.findElement('id', 'com.revolut.revolut:id/internalViewKeypadView_button0')
   await client.elementClick(field.ELEMENT)
   await sleep(500) // Don't remove
   stockEl = await waitUntilNew(findElementWithIdAndText, 'com.revolut.revolut:id/tabText', 'Stocks')
