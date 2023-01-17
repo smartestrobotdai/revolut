@@ -37,17 +37,20 @@ handleBuyMessage = async (message) => {
     if (isOperationOngoing === true) {
       logger.warn('operation is ongoing...abort...')
       return
-    } else if (sleepStartTIme && getCurTImeInSecond() - sleepStartTIme < 3600) {
-      logger.info('sleeping, abort')
-      return
     }
     isOperationOngoing = true
-    sleepStartTIme = null
+
     // logger.info("Received: '" + message.utf8Data + "'")
     const recObj = JSON.parse(message.utf8Data )
     const {id, point, price, operation, stoploss} = recObj
     try {
       if (operation === 'buy') {
+        if (sleepStartTIme && getCurTImeInSecond() - sleepStartTIme < 3600) {
+          logger.info('sleeping, abort')
+          isOperationOngoing = false
+          return
+        }
+        sleepStartTIme = null
         if (!holds.includes(id)) {
           logger.info(`Trying buy ${id} at point ${point}`)
           const buyPrice = await buy(id, 1000, point, false)

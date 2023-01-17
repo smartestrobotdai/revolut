@@ -137,7 +137,14 @@ checkBalance = async function(client) {
   balanceText = await client.getElementText(eleBalance.ELEMENT)
   balanceText = balanceText.replace(',','').replace('$','')
   console.log(balanceText)
-  
+
+  // move back.
+  await client.touchAction([
+    { action: 'press', x: 200, y: 800 },
+    { action: 'moveTo', x: 200, y: 1200 },
+    'release'
+  ])
+
   return parseInt(balanceText)
 }
 
@@ -155,15 +162,21 @@ async function buy(name, amount, price, isTest=true) {
     }
 
 
-    investEl = await waitUntilNew(findElementWithIdAndText, 'com.revolut.revolut:id/actionText', 'Invest')
-    await client.elementClick(investEl.ELEMENT)
-    await sleep(500)
+    // investEl = await waitUntilNew(findElementWithIdAndText, 'com.revolut.revolut:id/actionText', 'Invest')
+    // await client.elementClick(investEl.ELEMENT)
+    // await sleep(500)
     //searchMenuItems = await client.findElements('id', 'com.revolut.revolut:id/navBarMenuItem_icon')
-    searchMenuItems = await waitUntilNew(findElementWithIdAndIndex, 'com.revolut.revolut:id/navBarMenuItem_icon', 1)
-    await client.elementClick(searchMenuItems.ELEMENT)
+
+    
+    // searchMenuItems = await waitUntilNew(findElementWithIdAndIndex, 'com.revolut.revolut:id/navBarMenuItem_icon', 1)
+    // await client.elementClick(searchMenuItems.ELEMENT)
+    // await sleep(500)
+    searchBar = await waitUntilNew(findElementWithId, 'com.revolut.revolut:id/searchButton_searchText')
+    await client.elementClick(searchBar.ELEMENT)
     await sleep(500)
-    searchBar = await waitUntilNew(findElementWithId, 'com.revolut.revolut:id/searchView_search')
-    await client.elementSendKeys(searchBar.ELEMENT, name)
+    searchBar2 = await client.findElement('xpath', 
+      '//*[@resource-id=\'com.revolut.revolut:id/searchView_search\' and @class=\'android.widget.EditText\']')
+    await client.elementSendKeys(searchBar2.ELEMENT, name)
     await sleep(500)
     stock = await waitUntilNew(findElementWithIdAndIndex, 'com.revolut.revolut:id/row_root', 0)
     stockLabel = await client.findElementFromElement(stock.ELEMENT, 'id', 'com.revolut.revolut:id/subtitle')
@@ -224,20 +237,14 @@ async function buy(name, amount, price, isTest=true) {
     if (!isTest) {
       await client.elementClick(submitBtn.ELEMENT)
     }
-    await sleep(1000)
+    await sleep(3000)
     await client.deleteSession()
     return latestPrice
   }
   
-  async function sell(name, isTest=true) {
-    client = await wdio.remote(opts)
-    await sleep(1000)
-    await toStock(client)
-    await sleep(500) // CANNOT REMOVE!
-    // get current stock
-    //investments = await client.findElements('xpath', '//*[@class=\'android.view.ViewGroup\' and preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\']]')
-  
+  async function sellHelper(name, isTest=true) {
     investments = await waitUntilNew(findElementsWithXPath, '//*[@class=\'android.view.ViewGroup\' and @resource-id=\'com.revolut.revolut:id/row_root\' and count(preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\'])=1]')
+
     for (investment of investments) {
       await client.elementClick(investment.ELEMENT)
       stockName = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.widget.TextView\' and @resource-id=\'com.revolut.revolut:id/headerLayout_descriptionText\']')
@@ -269,7 +276,7 @@ async function buy(name, amount, price, isTest=true) {
           await client.deleteSession()
           return latestPrice
         }
-        break
+        return latestPrice
       } else {
         // we must go back.
         const backButton = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.widget.ImageButton\' and @resource-id=\'com.revolut.revolut:id/navigationButton\']')
@@ -277,6 +284,22 @@ async function buy(name, amount, price, isTest=true) {
         await sleep(500)
       }
     }
+    return null
+  }
+
+  async function sell(name, isTest=true) {
+    client = await wdio.remote(opts)
+    await sleep(1000)
+    await toStock(client)
+    await sleep(500) // CANNOT REMOVE!
+    // get current stock
+    //investments = await client.findElements('xpath', '//*[@class=\'android.view.ViewGroup\' and preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\']]')
+    await client.touchAction([
+      { action: 'press', x: 200, y: 1200 },
+      { action: 'moveTo', x: 200, y: 800 },
+      'release'
+    ])
+    res = await sellHelper(name, isTest)
     await client.deleteSession()
     return null
   }
