@@ -148,9 +148,30 @@ checkBalance = async function(client) {
   return parseInt(balanceText)
 }
 
+async function searchAndGet(name) {
+  searchBar = await waitUntilNew(findElementWithId, 'com.revolut.revolut:id/searchButton_searchText')
+  await client.elementClick(searchBar.ELEMENT)
+  await sleep(500)
+  searchBar2 = await client.findElement('xpath', 
+    '//*[@resource-id=\'com.revolut.revolut:id/searchView_search\' and @class=\'android.widget.EditText\']')
+  await client.elementSendKeys(searchBar2.ELEMENT, name)
+  await sleep(500)
+  stock = await waitUntilNew(findElementWithIdAndIndex, 'com.revolut.revolut:id/row_root', 0)
+  stockLabel = await client.findElementFromElement(stock.ELEMENT, 'id', 'com.revolut.revolut:id/title')
+  //stockLabel = await stock.findElement('id', 'com.revolut.revolut:id/subtitle')
+  stockLabelText = await client.getElementText(stockLabel.ELEMENT)
+  // make sure the finding label is correct one.
+  assert(stockLabelText === name)
+  return stock
+}
+
 async function buy(id, amount, price, isTest=true) {
   const name = await getStockNameById(id)
   console.log(`Buying stock name: ${name}, Id: ${id}`)
+  if (!name) {
+    logger.warn(`Cannot find name with ID: ${id}`)
+    return FAILED_SHORT_TIME
+  }
 
   client = await wdio.remote(opts)
   await sleep(1000)
@@ -174,19 +195,7 @@ async function buy(id, amount, price, isTest=true) {
   // searchMenuItems = await waitUntilNew(findElementWithIdAndIndex, 'com.revolut.revolut:id/navBarMenuItem_icon', 1)
   // await client.elementClick(searchMenuItems.ELEMENT)
   // await sleep(500)
-  searchBar = await waitUntilNew(findElementWithId, 'com.revolut.revolut:id/searchButton_searchText')
-  await client.elementClick(searchBar.ELEMENT)
-  await sleep(500)
-  searchBar2 = await client.findElement('xpath', 
-    '//*[@resource-id=\'com.revolut.revolut:id/searchView_search\' and @class=\'android.widget.EditText\']')
-  await client.elementSendKeys(searchBar2.ELEMENT, name)
-  await sleep(500)
-  stock = await waitUntilNew(findElementWithIdAndIndex, 'com.revolut.revolut:id/row_root', 0)
-  stockLabel = await client.findElementFromElement(stock.ELEMENT, 'id', 'com.revolut.revolut:id/title')
-  //stockLabel = await stock.findElement('id', 'com.revolut.revolut:id/subtitle')
-  stockLabelText = await client.getElementText(stockLabel.ELEMENT)
-  // make sure the finding label is correct one.
-  assert(stockLabelText === name)
+  stock = await searchAndGet(name)
   await client.elementClick(stock.ELEMENT)
   await sleep(500)
   buyBar = await waitUntilNew(findElementWithId, 'com.revolut.revolut:id/actionsRecyclerView')
@@ -291,21 +300,55 @@ async function sellHelper(name, isTest=true) {
   return null
 }
 
-async function sell(name, isTest=true) {
+async function sell(id, isTest=true) {
+
+  const name = await getStockNameById(id)
+  console.log(`Selling stock name: ${name}, Id: ${id}`)
+  if (!name) {
+    logger.warn(`Cannot find name with ID: ${id}`)
+    return FAILED_SHORT_TIME
+  }
+
   client = await wdio.remote(opts)
   await sleep(1000)
   await toStock(client)
   await sleep(500) // CANNOT REMOVE!
   // get current stock
   //investments = await client.findElements('xpath', '//*[@class=\'android.view.ViewGroup\' and preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\']]')
-  await client.touchAction([
-    { action: 'press', x: 200, y: 1200 },
-    { action: 'moveTo', x: 200, y: 800 },
-    'release'
-  ])
-  res = await sellHelper(name, isTest)
+  const stock = await searchAndGet(name)
+  await client.elementClick(stock.ELEMENT)
+  await sleep(500)
+
+  // click sell button
+  const sellBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/actionsRecyclerView\' and @class=\'androidx.recyclerview.widget.RecyclerView\']/*[@class=\'android.view.ViewGroup\' and @index=\'1\']')
+  await client.elementClick(sellBtn.ELEMENT)
+  await sleep(1000)
+
+  // click the 'owned', which means sell all.
+  const ownedLabel = await waitUntilNew(findElementWithXPath, '//*[@resource-id=\'com.revolut.revolut:id/amountEdit_startHintContainer\' and @class=\'android.widget.RelativeLayout\' and @index=\'2\']')
+  await client.elementClick(ownedLabel.ELEMENT)
+  
+  // click sell button again.
+  const sellBtn2 = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
+  await client.elementClick(sellBtn2.ELEMENT)
+  await sleep(500)
+
+  //check final price
+  priceLabel = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.view.ViewGroup\' and @index=\'4\']/*[@resource-id=\'com.revolut.revolut:id/endLabel\']')
+  priceText = await client.getElementText(priceLabel.ELEMENT)
+  logger.info(priceText)  // 1 AAPL = $147.62
+  const latestPrice = getPriceFromLabelText(priceText)
+  const submitBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
+  if (!isTest) {
+    await client.elementClick(submitBtn.ELEMENT)
+    await sleep(1000)
+    await client.deleteSession()
+    
+  }
+  
+  //res = await sellHelper(name, isTest)
   await client.deleteSession()
-  return null
+  return latestPrice
 }
 
 module.exports = {
