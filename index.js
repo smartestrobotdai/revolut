@@ -19,6 +19,11 @@ function webSocketConnect(url) {
     exampleSocket.on('connect', function(connection) {
       resolve(connection)
     })
+
+    // connection.on('error', function(error) {
+    //   console.log("Connection error: " + error.toString())
+    //   resolve(error)
+    // });
   })
 }
 
@@ -95,8 +100,8 @@ handleBuyMessage = async (message) => {
 async function main () {
   await holds.load()
   const myHolds = await holds.getAll()
-  console.log(`Holds: ${JSON.stringify(myHolds)}` )
-  const websocketUrl = 'ws://localhost:8766/'
+  logger.info(`Holds: ${JSON.stringify(myHolds)}` )
+  const websocketUrl = 'ws://192.168.1.41:8766/'
   const connection = await webSocketConnect(websocketUrl)
   logger.info(`connected to ${websocketUrl}`)
   connection.on('message', handleBuyMessage)
