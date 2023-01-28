@@ -1,6 +1,7 @@
 const wdio = require("webdriverio")
 const {sleep, logger, getStockNameById} = require('./util')
 const assert = require("assert");
+const { exec } = require("child_process");
 
 let client = null
 
@@ -165,7 +166,7 @@ async function searchAndGet(name) {
   return stock
 }
 
-async function buy(id, amount, price, isTest=true) {
+async function executeCommand(func, id, ...args) {
   const name = await getStockNameById(id)
   console.log(`Buying stock name: ${name}, Id: ${id}`)
   if (!name) {
@@ -178,13 +179,26 @@ async function buy(id, amount, price, isTest=true) {
   await toStock(client)
   await sleep(2000)
 
+  res = await func(id, name, ...args)
+  await client.deleteSession()
+  return res
+}
+
+async function buy(id, amount, price, isTest=true) {
+  return executeCommand(_buy, id, amount, price, isTest)
+}
+
+async function sell(id, isTest=true) {
+  return executeCommand(_sell, id, isTest)
+}
+
+async function _buy(id, name, amount, price, isTest=true) {
+  console.log(`amount: ${amount}, price=${price}`)
   balance = await checkBalance(client)
   if (balance < amount) {
     logger.warn(`Balance: ${balance} < amount ${amount}`)
-    await client.deleteSession()
     return FAILED_LONG_TIME
   }
-
 
   // investEl = await waitUntilNew(findElementWithIdAndText, 'com.revolut.revolut:id/actionText', 'Invest')
   // await client.elementClick(investEl.ELEMENT)
@@ -251,68 +265,10 @@ async function buy(id, amount, price, isTest=true) {
     await client.elementClick(submitBtn.ELEMENT)
   }
   await sleep(3000)
-  await client.deleteSession()
   return latestPrice
 }
   
-async function sellHelper(name, isTest=true) {
-  investments = await waitUntilNew(findElementsWithXPath, '//*[@class=\'android.view.ViewGroup\' and @resource-id=\'com.revolut.revolut:id/row_root\' and count(preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\'])=1]')
-
-  for (investment of investments) {
-    await client.elementClick(investment.ELEMENT)
-    stockName = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.widget.TextView\' and @resource-id=\'com.revolut.revolut:id/headerLayout_descriptionText\']')
-    stockNameText = await client.getElementText(stockName.ELEMENT)
-    logger.info(stockNameText)
-    regex = /[A-Z0-9\.]+/
-    stockId = stockNameText.match(regex)[0]
-    if (stockId === name) {
-      const sellBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/actionsRecyclerView\' and @class=\'androidx.recyclerview.widget.RecyclerView\']/*[@class=\'android.view.ViewGroup\' and @index=\'1\']')
-      await client.elementClick(sellBtn.ELEMENT)
-
-      await sleep(500)
-      const ownedLabel = await waitUntilNew(findElementWithXPath, '//*[@resource-id=\'com.revolut.revolut:id/amountEdit_startHintContainer\' and @class=\'android.widget.RelativeLayout\' and @index=\'2\']')
-      await client.elementClick(ownedLabel.ELEMENT)
-      const sellBtn2 = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
-      await client.elementClick(sellBtn2.ELEMENT)
-      await sleep(500)
-
-      //check price
-      priceLabel = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.view.ViewGroup\' and @index=\'4\']/*[@resource-id=\'com.revolut.revolut:id/endLabel\']')
-      priceText = await client.getElementText(priceLabel.ELEMENT)
-      logger.info(priceText)  // 1 AAPL = $147.62
-      const latestPrice = getPriceFromLabelText(priceText)
-      const submitBtn = await client.findElement('xpath', '//*[@resource-id=\'com.revolut.revolut:id/next_button\' and @class=\'android.widget.FrameLayout\']')
-
-      if (!isTest) {
-        await client.elementClick(submitBtn.ELEMENT)
-        await sleep(1000)
-        await client.deleteSession()
-        return latestPrice
-      }
-      return latestPrice
-    } else {
-      // we must go back.
-      const backButton = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.widget.ImageButton\' and @resource-id=\'com.revolut.revolut:id/navigationButton\']')
-      await client.elementClick(backButton.ELEMENT)
-      await sleep(500)
-    }
-  }
-  return null
-}
-
-async function sell(id, isTest=true) {
-
-  const name = await getStockNameById(id)
-  console.log(`Selling stock name: ${name}, Id: ${id}`)
-  if (!name) {
-    logger.warn(`Cannot find name with ID: ${id}`)
-    return FAILED_SHORT_TIME
-  }
-
-  client = await wdio.remote(opts)
-  await sleep(1000)
-  await toStock(client)
-  await sleep(500) // CANNOT REMOVE!
+async function _sell(id, name, isTest=true) {
   // get current stock
   //investments = await client.findElements('xpath', '//*[@class=\'android.view.ViewGroup\' and preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\']]')
   const stock = await searchAndGet(name)
@@ -334,7 +290,7 @@ async function sell(id, isTest=true) {
   await sleep(500)
 
   //check final price
-  priceLabel = await waitUntilNew(findElementWithXPath, '//*[@class=\'android.view.ViewGroup\' and @index=\'4\']/*[@resource-id=\'com.revolut.revolut:id/endLabel\']')
+  priceLabel = await waitUntilNew(findElementWithXPath, `//*[@class=\'android.view.ViewGroup\']/*[@resource-id=\'com.revolut.revolut:id/endLabel\' and contains(@text, \'${id}\')]`)
   priceText = await client.getElementText(priceLabel.ELEMENT)
   logger.info(priceText)  // 1 AAPL = $147.62
   const latestPrice = getPriceFromLabelText(priceText)
@@ -342,12 +298,8 @@ async function sell(id, isTest=true) {
   if (!isTest) {
     await client.elementClick(submitBtn.ELEMENT)
     await sleep(1000)
-    await client.deleteSession()
-    
   }
   
-  //res = await sellHelper(name, isTest)
-  await client.deleteSession()
   return latestPrice
 }
 
