@@ -1,7 +1,8 @@
 const wdio = require("webdriverio")
 const {sleep, logger, getStockNameById} = require('./util')
 const assert = require("assert");
-const { exec } = require("child_process");
+const { exec } = require("child_process")
+const { spawn } = require('child_process');
 
 let client = null
 
@@ -13,6 +14,8 @@ const FAILED_SHORT_TIME=-2
 
 // sleep 1 hour
 const FAILED_LONG_TIME=-3
+
+const freeTimesLeft = 3
 
 process.on('SIGINT', async function() {
   logger.info('SIGINT Received - trying to delete session');
@@ -120,19 +123,44 @@ getPriceFromLabelText = function(text) {
   return latestPrice
 }
 
+swipe = async function(x1, y1, x2, y2) {
+  return new Promise((resolve, reject) => {
+    duration = 200
+    const adbCommand = `adb shell input swipe ${x1} ${y1} ${x2} ${y2} ${duration}`
+    const adbProcess = spawn('sh', ['-c', adbCommand])
+    
+    adbProcess.stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`)
+    })
+    
+    adbProcess.stderr.on('data', (data) => {
+      console.error(`stderr: ${data}`)
+      reject()
+    })
+    
+    adbProcess.on('close', (code) => {
+      console.log(`child process exited with code ${code}`)
+      resolve()
+    })
+  })
+}
+
 checkBalance = async function(client) {
-      //investments = await client.findElements('xpath', '//*[@class=\'android.view.ViewGroup\' and preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\']]')
+  //investments = await client.findElements('xpath', '//*[@class=\'android.view.ViewGroup\' and preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/listSubheader_container\']]')
   // 
   const usdBalancePath = '//*[@class=\'android.widget.TextView\' and @resource-id=\'com.revolut.revolut:id/valuePrimary\' and count(preceding-sibling::*[@resource-id=\'com.revolut.revolut:id/title\' and contains(@text, \'USD\')])=1]'
   let eleBalance = await client.findElement('xpath', usdBalancePath)
   if (!eleBalance || eleBalance.error) {
-    // scroll down
-    await client.touchAction([
-      { action: 'press', x: 200, y: 1200 },
-      { action: 'moveTo', x: 200, y: 800 },
-      'release'
-    ])
+    // scroll up
+    // await client.touchAction([
+    //   { action: 'press', x: 200, y: 500 },
+    //   { action: 'moveTo', x: 200, y: 200 },
+    //   'release'
+    // ])
+    // await sleep(3000)
+    await swipe(200, 800, 200, 200)
     eleBalance = await waitUntilNew(findElementWithXPath, usdBalancePath)
+
   }
 
   balanceText = await client.getElementText(eleBalance.ELEMENT)
@@ -140,12 +168,13 @@ checkBalance = async function(client) {
   console.log(balanceText)
 
   // move back.
-  await client.touchAction([
-    { action: 'press', x: 200, y: 800 },
-    { action: 'moveTo', x: 200, y: 1200 },
-    'release'
-  ])
+  // await client.touchAction([
+  //   { action: 'press', x: 200, y: 800 },
+  //   { action: 'moveTo', x: 200, y: 1200 },
+  //   'release'
+  // ])
 
+  await swipe(200, 200, 200, 800)
   return parseInt(balanceText)
 }
 
@@ -250,8 +279,8 @@ async function _buy(id, name, amount, price, isTest=true) {
   const re2 = /(\d+) out of/
   const leftCommisionFreeTimes = re2.exec(commisionFreeText)[1]
   
-  if (parseInt(leftCommisionFreeTimes) <= 4) {
-    logger.info(`Left commision free times <= 4, aborting...`)
+  if (parseInt(leftCommisionFreeTimes) <= freeTimesLeft) {
+    logger.info(`Left commision free times <= ${freeTimesLeft}, aborting...`)
     return FAILED_PERMANENT
   }
 
