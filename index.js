@@ -87,6 +87,7 @@ handleBuyMessage = async (message) => {
         logger.info(`Trying sell ${id} at point ${point}`)
         await sell(id, false)
         await holds.remove(id)
+        await sleep(1000)
       }
     } catch(e) {
       logger.error(e)

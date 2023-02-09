@@ -82,7 +82,7 @@ function sleep(ms) {
 }
 
 async function main() {
-  holds = new Holds('myhold.json')
+  holds = new Holds('myholds_test.json')
   await holds.load()
   await holds.add('MSFT', 200)
   await holds.add('MSFT', 100)
